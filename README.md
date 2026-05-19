@@ -1,46 +1,7 @@
 # driver-drowsiness-detection
-Evet, bu bonus çok değerli çünkü direkt:
 
-# +15 puan
 
-ve çoğu grup bunu düzgün yapmayacak.
 
-Sizin README’niz gerçekten mini conference paper gibi görünmeli.
-
-README:
-
-* profesyonel görünürse
-* architecture diagram içerirse
-* ablation study koyarsanız
-
-çok güçlü görünür.
-
----
-
-# README NASIL OLMALI?
-
-Şu yapı ideal:
-
-```text
-Title
-Abstract
-Dataset
-Methodology
-Architecture
-Training Setup
-Results
-Ablation Study
-Conclusion
-Future Work
-How to Run
-Team Members
-```
-
----
-
-# SİZE ÖZEL README YAPISI
-
-Bunu GitHub README.md’ye koyabilirsiniz:
 
 # Driver Drowsiness Detection using CNN-GRU-Autoencoder Architecture
 
@@ -233,4 +194,3 @@ python train.py
 * Person 4 — Autoencoder & Regularization
 * Person 5 — Integration & Evaluation
 
-Bu README şu an bile çoğu öğrenci projesinden daha profesyonel görünüyor.

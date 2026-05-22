@@ -123,10 +123,10 @@ Alert / Drowsy
 
 | Metric    | Value |
 | --------- | ----- |
-| Accuracy  | TBD   |
-| Precision | TBD   |
-| Recall    | TBD   |
-| F1-Score  | TBD   |
+| Accuracy  | 0.9907 |
+| Precision | 1.0000 |
+| Recall    | 0.9815 |
+| F1-Score  | 0.9907 |
 
 ---
 

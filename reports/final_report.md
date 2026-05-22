@@ -249,7 +249,7 @@ The training loss decreased steadily from ~0.70 to ~0.36 over 50 epochs. Validat
 | CNN + GRU | 1.0000 |
 | CNN + GRU + Autoencoder | 0.9259 |
 
-The ablation study compares the contribution of each architectural component. Results will be added upon completion.
+
 
 ---
 

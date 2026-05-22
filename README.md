@@ -169,13 +169,12 @@ Hyperparameters were selected using a grid search on the validation set:
 
 # Ablation Study
 
-| Model                    | Purpose                 |
-| ------------------------ | ----------------------- |
-| CNN Only                 | Spatial baseline        |
-| CNN + GRU                | Temporal learning       |
-| CNN + GRU + Autoencoder  | Final architecture      |
-| CNN + GRU + AE + Dropout | Regularized final model |
 
+| Model | Accuracy |
+|-------|----------|
+| CNN Only | 1.0000 |
+| CNN + GRU | 1.0000 |
+| CNN + GRU + Autoencoder | 0.9259 |
 ---
 
 # Conclusion

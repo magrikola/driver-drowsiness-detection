@@ -96,37 +96,39 @@ The following preprocessing pipeline was applied:
 
 We formulate drowsiness detection as a binary classification task. Given a sequence of 10 consecutive facial frames (64×64×3), the model predicts whether the driver is **Alert (0)** or **Drowsy (1)**.
 
-4.2 Architecture Overview
+### 4.2 Architecture Overview
 
 The proposed hybrid architecture consists of four main blocks:
-INPUT (10 frames, 64×64×3)
-↓
-┌────────────────────────────────────┐
-│ Block 1: CNN Encoder │
-│ (Spatial Feature Extraction) │
-│ Output: 128-dim features │
-└────────────────────────────────────┘
-↓
-┌────────────────────────────────────┐
-│ Block 2: GRU Layer │
-│ (Temporal Learning) │
-│ Bidirectional, 2 layers, 128 dim │
-└────────────────────────────────────┘
-↓
-┌────────────────────────────────────┐
-│ Block 3: Autoencoder │
-│ (Feature Compression) │
-│ Encoder: 128 → 64 → 32 │
-│ Decoder: 32 → 64 → 128 │
-└────────────────────────────────────┘
-↓
-┌────────────────────────────────────┐
-│ Block 4: Classifier │
-│ Linear(128,64) → ReLU → Dropout │
-│ Linear(64,2) → Softmax │
-└────────────────────────────────────┘
-↓
-ALERT / DROWSY
+
+**INPUT:** 10 frames (64×64×3)
+
+**↓**
+
+**Block 1: CNN Encoder** (Person 2)
+- Spatial feature extraction
+- Output: 128-dim features
+
+**↓**
+
+**Block 2: GRU Layer** (Person 3)
+- Temporal learning
+- Bidirectional, 2 layers, 128 hidden units
+
+**↓**
+
+**Block 3: Autoencoder** (Person 4)
+- Feature compression
+- Encoder: 128 → 64 → 32
+- Decoder: 32 → 64 → 128
+
+**↓**
+
+**Block 4: Classifier**
+- Linear(128,64) → ReLU → Dropout(0.5) → Linear(64,2) → Softmax
+
+**↓**
+
+**OUTPUT:** ALERT / DROWSY
 
 4.3 CNN Block 
 

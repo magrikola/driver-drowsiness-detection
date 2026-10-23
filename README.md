@@ -183,6 +183,18 @@ This project demonstrates that combining spatial learning, temporal learning, an
 
 ---
 
+# Limitations
+
+Please read the results above with the following caveats in mind:
+
+* **Small dataset.** Only 24 of the 180 videos in UTA-RLDD were used (12 Alert, 12 Drowsy), giving 720 sequences of 10 frames.
+* **Sequence-level split.** The 70/15/15 train/validation/test split is applied to the individual sequences (`train_test_split` on the sequence array), not to videos or subjects. Sequences cut from the same video can therefore appear in both the training and the test set (data leakage), so the reported scores are likely optimistic and do not measure generalization to unseen drivers.
+* **Small test set.** The test set contains 108 sequences, so a difference of a few sequences changes the accuracy noticeably (for example 107/108 = 0.9907 and 100/108 = 0.9259).
+* **Inconsistent numbers.** The Results table reports 0.9907 accuracy for the full CNN-GRU-Autoencoder model, while the Ablation Study lists 0.9259 for the same architecture and 1.0000 for CNN only. The origin of this difference (separate runs or configurations) is not documented, and the numbers have not been re-verified. With the current evidence, the claim that the GRU and the autoencoder improve performance is not supported.
+* **Suggested next steps.** Split by video or subject, evaluate on more videos and participants, repeat training with several random seeds, and report confidence intervals.
+
+---
+
 # Future Work
 
 Possible future improvements include:

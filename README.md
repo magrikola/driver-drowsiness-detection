@@ -1,244 +1,155 @@
-# driver-drowsiness-detection
+# Driver Drowsiness Detection with a CNN-GRU-Autoencoder
 
+Binary classification (Alert vs. Drowsy) of short facial-video sequences from the UTA-RLDD dataset. A CNN extracts features from each frame, a GRU models the 10-frame sequence, and an autoencoder is trained alongside as an auxiliary reconstruction objective. Team project (five members), implemented in PyTorch.
 
+> **Read this first.** The results below come from a very small subset of the dataset (24 videos) and from a random split of sequences rather than of videos. They are likely optimistic. See [Limitations](#limitations) before interpreting them.
 
+## Contents
 
-# Driver Drowsiness Detection using CNN-GRU-Autoencoder Architecture
+- [Repository structure](#repository-structure)
+- [Dataset and preprocessing](#dataset-and-preprocessing)
+- [Model](#model)
+- [Training configuration](#training-configuration)
+- [Results](#results)
+- [Limitations](#limitations)
+- [Getting started](#getting-started)
+- [Future work](#future-work)
+- [Team](#team)
+- [Dataset citation](#dataset-citation)
 
-## Abstract
+## Repository structure
 
-Driver drowsiness is one of the leading causes of traffic accidents worldwide. In this project, we propose a deep learning-based driver drowsiness detection system using a hybrid CNN-GRU-Autoencoder architecture. The model combines spatial feature extraction, temporal sequence learning, and latent feature compression to classify driver states as either Alert or Drowsy. The UTA-RLDD dataset was used for training and evaluation. Experimental results demonstrate that combining temporal learning with latent representation improves classification performance compared to baseline architectures.
+```
+models/         Block implementations written by team members (CNN, GRU, autoencoder)
+notebooks/      Preprocessing and training notebooks (written for Google Colab)
+reports/        Final report and supporting tables (dataset, tuning, regularization)
+results/        Saved figures (confusion matrix, CNN metrics)
+presentation/   Presentation notes
+dataset/        Placeholder only; the dataset is not included
+```
 
----
+`notebooks/final_model_train.ipynb` contains the final experiment as a plain Python script (a Colab export saved with an `.ipynb` extension), so run it as a script or paste it into Colab rather than opening it as a notebook.
 
-# Dataset
+## Dataset and preprocessing
 
-Dataset: UTA-RLDD Dataset
+**Dataset:** UTA Real-Life Drowsiness Dataset (UTA-RLDD), 180 videos of 60 participants, about 10 minutes each. This project uses 24 videos from Fold 1:
 
-Used Classes:
+| Class | Original label | Videos |
+|---|---|---|
+| Alert | 0 (KSS 1-3) | 12 |
+| Drowsy | 10 (KSS 8-9) | 12 |
+| Excluded | 5 (Low Vigilance) | 0 |
 
-* Alert
-* Drowsy
+**Preprocessing** (`notebooks/data_preprocessing.ipynb`):
 
-Excluded Class:
+1. Keep every 10th frame of a video, up to 300 frames per video.
+2. Convert BGR to RGB, resize to 64x64 and scale pixel values to [0, 1].
+3. Group the kept frames into non-overlapping sequences of 10 frames (30 sequences per video).
+4. Split the 720 sequences 70/15/15 with a stratified random split (`train_test_split`, `random_state=42`).
 
-* Low Vigilance
+| Split | Sequences |
+|---|---|
+| Train | 504 |
+| Validation | 108 |
+| Test | 108 |
 
-Dataset preprocessing steps:
+## Model
 
-* Video frame extraction
-* Frame resizing to 64x64
-* Sequence generation using 10 consecutive frames
-* Train / Validation / Test split
+The final experiment is defined inline in `notebooks/final_model_train.ipynb`.
 
-Final Dataset Statistics:
+```
+Input: 10 frames, 64x64x3
+  -> CNN encoder (applied to each frame)         -> 128-d feature per frame
+  -> GRU (2 layers, bidirectional, 128 hidden)   -> 128-d sequence vector
+  -> Classifier: Linear(128,64) - ReLU - Dropout(0.5) - Linear(64,2)
+  -> Alert / Drowsy
 
-| Category        | Count |
-| --------------- | ----- |
-| Alert Videos    | 12    |
-| Drowsy Videos   | 12    |
-| Total Videos    | 24    |
-| Total Frames    | 7200  |
-| Total Sequences | 720   |
+Auxiliary branch (training loss only):
+  GRU output (128-d) -> Autoencoder 128-64-32-64-128 -> reconstruction of the GRU output
+```
 
----
+- **CNN encoder:** three Conv3x3 + BatchNorm + ReLU blocks (32, 64, 128 channels), max pooling after the first two, global average pooling, Linear(128,128) and Dropout(0.3).
+- **GRU:** 2 layers, bidirectional, 128 hidden units, dropout 0.3, followed by Linear(256,128) on the last time step.
+- **Autoencoder:** encoder 128 -> 64 -> 32, decoder 32 -> 64 -> 128. It reconstructs the GRU output and its MSE loss is added to the classification loss. **The classifier reads the GRU output directly; the autoencoder's latent code is not used for classification.**
+- **Loss:** `CrossEntropy + 0.5 * MSE(reconstruction, GRU output)`.
 
-# Methodology
+Design intent: a CNN captures spatial cues such as eye closure and head posture, a GRU is a compact choice for short sequences, and the reconstruction task was meant to act as an implicit regularizer. The ablation below does not show a benefit from the GRU or the autoencoder on this data.
 
-## CNN Block
+`models/` holds the individual blocks written by each team member. Their default settings (for example a unidirectional GRU with 64 hidden units and a 64-d autoencoder latent) differ from the final experiment above.
 
-The CNN block is used to extract spatial facial features from individual frames. Features such as eye closure, mouth movement, and head posture are learned through convolutional layers.
+## Training configuration
 
-Used Components:
+| Parameter | Value |
+|---|---|
+| Framework | PyTorch |
+| Input | 10 frames of 64x64x3 |
+| Batch size | 32 |
+| Optimizer | Adam, learning rate 1e-3 |
+| Weight decay (L2) | 1e-5 |
+| Epochs | 50 |
+| Model selection | Checkpoint with the best validation accuracy |
+| Dropout | 0.3 (CNN head, GRU, GRU head), 0.5 (classifier) |
+| Loss | CrossEntropy + 0.5 x reconstruction MSE |
 
-* Conv2D
-* MaxPooling
-* Batch Normalization
-* Dropout
+## Results
 
-  ### Why CNN?
-Convolutional Neural Networks are translation-invariant, meaning they can detect micro-expressions (eye closure, mouth movement, head droop) regardless of where they appear in the frame. This is critical for drowsiness detection because the driver's face may shift position. CNNs also share weights across spatial locations, reducing parameters and preventing overfitting on our limited dataset of 24 videos.
+Reported on the 108-sequence test set:
 
-### Why GRU over LSTM or RNN?
-GRU was chosen over LSTM because:
-- **Fewer parameters:** GRU has 3 gates vs LSTM's 4, making it faster to train
-- **Sequence length:** Our sequences are only 10 frames, so the additional complexity of LSTM is unnecessary
-- **Less prone to overfitting:** With only 504 training sequences, GRU's simpler architecture generalizes better
-
-Compared to vanilla RNN, GRU avoids the vanishing gradient problem, allowing it to learn dependencies across all 10 frames.
-
-### Why Autoencoder?
-The autoencoder serves as an implicit regularizer. By forcing the model to reconstruct the GRU output from a compressed latent vector (128 → 32 → 128), the model learns:
-- **Robust features:** Only the most important information survives compression
-- **Noise reduction:** Irrelevant variations (lighting changes, minor head movements) are filtered out
-- **Better generalization:** The reconstruction loss (λ = 0.5) prevents overfitting to training examples
-
-Without the autoencoder, the model achieved lower validation accuracy on noisy validation samples.
-
-
----
-
-## GRU Block
-
-The GRU block is responsible for temporal sequence learning. It captures frame-to-frame behavioral changes and learns driver attention patterns over time.
-
-Sequence Length:
-
-* 10 frames
-
----
-
-## Autoencoder Block
-
-The Autoencoder compresses high-dimensional feature representations into compact latent vectors. This reduces redundant information and improves feature robustness.
-
-Used Techniques:
-
-* Latent Representation
-* Feature Compression
-* Noise Reduction
-
----
-
-# Final Architecture
-
-Input Video Frames
-↓
-CNN Feature Extractor
-↓
-GRU Temporal Learning
-↓
-Autoencoder Latent Representation
-↓
-Dense Classifier
-↓
-Alert / Drowsy
-
----
-
-# Training Configuration
-
-| Parameter             | Value            |
-| --------------------- | ---------------- |
-| Framework             | PyTorch          |
-| Image Size            | 64x64            |
-| Batch Size            | 32               |
-| Sequence Length       | 10               |
-| CNN Feature Dimension | 128              |
-| Optimizer             | Adam             |
-| Loss Function         | CrossEntropyLoss |
-
----
-
-# Regularization Techniques
-
-* Dropout
-* Batch Normalization
-* Early Stopping
-* L2 Regularization
-  ### Hyperparameter Tuning
-Hyperparameters were selected using a grid search on the validation set:
-
-| Parameter | Values Tested | Selected | Rationale |
-|-----------|---------------|----------|-----------|
-| Learning Rate | 1e-4, 5e-4, 1e-3 | 1e-3 | Fastest convergence without divergence |
-| Batch Size | 16, 32, 64 | 32 | Balances memory and gradient stability |
-| GRU Hidden Dim | 64, 128, 256 | 128 | Best validation accuracy |
-| AE Bottleneck | 16, 32, 64 | 32 | Preserves 25% of original information |
-| Dropout Rate | 0.2, 0.3, 0.5 | 0.3-0.5 | Reduces overfitting on small dataset |
-
-**Regularization techniques applied:**
-- **Dropout (0.3-0.5):** Prevents co-adaptation of neurons
-- **Batch Normalization:** Accelerates training and reduces internal covariate shift
-- **Early Stopping (patience=10):** Stops training when validation accuracy plateaus
-- **L2 Weight Decay (1e-5):** Penalizes large weights
-- **Gradient Clipping (norm=1.0):** Stabilizes GRU training
-
----
-
-# Results
-
-| Metric    | Value |
-| --------- | ----- |
-| Accuracy  | 0.9907 |
+| Metric | Value |
+|---|---|
+| Accuracy | 0.9907 |
 | Precision | 1.0000 |
-| Recall    | 0.9815 |
-| F1-Score  | 0.9907 |
+| Recall | 0.9815 |
+| F1-Score | 0.9907 |
 
----
-
-# Ablation Study
-
+Ablation as documented by the team:
 
 | Model | Accuracy |
-|-------|----------|
-| CNN Only | 1.0000 |
+|---|---|
+| CNN only | 1.0000 |
 | CNN + GRU | 1.0000 |
 | CNN + GRU + Autoencoder | 0.9259 |
----
 
-# Conclusion
+The two tables disagree about the full model (0.9907 vs. 0.9259) and the ablation ranks the CNN-only model highest. Saved figures are in `results/`. Please read the limitations below.
 
-This project demonstrates that combining spatial learning, temporal learning, and latent feature compression can improve driver drowsiness detection performance. The proposed hybrid architecture provides a scalable and efficient framework for attention-aware driver monitoring systems.
+## Limitations
 
----
+- **Small dataset.** Only 24 of the 180 videos (Fold 1) are used, and only the first 300 kept frames of each video, giving 720 sequences.
+- **Sequence-level split.** The split is applied to sequences, not to videos or subjects. Sequences from the same video can appear in both the training and the test set (data leakage), so the scores are likely optimistic and do not measure generalization to unseen drivers.
+- **Small test set.** The test set has 108 sequences, so a few sequences change the accuracy noticeably (107/108 = 0.9907, 100/108 = 0.9259).
+- **Inconsistent numbers.** The origin of the difference between the Results and Ablation tables is not documented and has not been re-verified. With the current evidence, the claim that the GRU and the autoencoder improve performance is not supported.
+- **Autoencoder role.** In the final experiment the autoencoder only adds a reconstruction loss; it is not part of the classification path.
+- **Documentation does not fully match the code.** The reports in `reports/` describe a hyperparameter grid search, early stopping with patience 10 and gradient clipping. The final training script contains none of these, and no grid-search or gradient-clipping code exists in the repository. An `EarlyStopping` helper (patience 5) in `models/autoencoder.py` is not used by the final script.
+- **Reproducibility.** The notebooks use hard-coded Google Drive paths, the dataset is not included and there is no `requirements.txt`.
+- **Suggested next steps.** Split by video or subject, use more videos and participants, repeat training with several random seeds and report confidence intervals.
 
-# Limitations
+## Getting started
 
-Please read the results above with the following caveats in mind:
+Requirements: Python 3, PyTorch, NumPy, OpenCV, scikit-learn, matplotlib and seaborn. The notebooks were written for Google Colab with Google Drive.
 
-* **Small dataset.** Only 24 of the 180 videos in UTA-RLDD were used (12 Alert, 12 Drowsy), giving 720 sequences of 10 frames.
-* **Sequence-level split.** The 70/15/15 train/validation/test split is applied to the individual sequences (`train_test_split` on the sequence array), not to videos or subjects. Sequences cut from the same video can therefore appear in both the training and the test set (data leakage), so the reported scores are likely optimistic and do not measure generalization to unseen drivers.
-* **Small test set.** The test set contains 108 sequences, so a difference of a few sequences changes the accuracy noticeably (for example 107/108 = 0.9907 and 100/108 = 0.9259).
-* **Inconsistent numbers.** The Results table reports 0.9907 accuracy for the full CNN-GRU-Autoencoder model, while the Ablation Study lists 0.9259 for the same architecture and 1.0000 for CNN only. The origin of this difference (separate runs or configurations) is not documented, and the numbers have not been re-verified. With the current evidence, the claim that the GRU and the autoencoder improve performance is not supported.
-* **Suggested next steps.** Split by video or subject, evaluate on more videos and participants, repeat training with several random seeds, and report confidence intervals.
+1. Download the UTA-RLDD dataset (Fold 1 archives `Fold1_part1.zip` and `Fold1_part2.zip`) from its authors and place them in your Drive.
+2. Open `notebooks/data_preprocessing.ipynb` in Colab and adjust the paths in the first cells. It extracts frames, builds the sequences and saves the `X_*.npy` and `y_*.npy` files.
+3. Run `notebooks/final_model_train.ipynb` as a script in Colab (set `data_path` to the folder with the saved arrays). It trains the model, selects the best checkpoint on the validation set and prints the test metrics.
+4. Optional: `notebooks/cnn_training.ipynb`, `notebooks/cnn_gru_training.ipynb` and `notebooks/autoencoder_test.ipynb` contain the earlier per-block experiments.
 
----
+## Future work
 
-# Future Work
+- Split by video or subject and evaluate on the full dataset
+- Real-time inference
+- Transformer-based architectures
+- Multi-modal sensor fusion and eye-gaze estimation
+- Mobile deployment optimization
 
-Possible future improvements include:
+## Team
 
-* Real-time inference
-* Transformer-based architectures
-* Multi-modal sensor fusion
-* Eye-gaze estimation
-* Mobile deployment optimization
+Team of five, with these responsibilities:
 
----
+- Dataset and preprocessing
+- CNN block
+- GRU block
+- Autoencoder and regularization
+- Integration and evaluation
 
-# How to Run
+## Dataset citation
 
-```bash
-git clone REPOSITORY_LINK
-cd driver-drowsiness-detection
-```
-
-Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-Run preprocessing:
-
-```bash
-python preprocessing.py
-```
-
-Run training:
-
-```bash
-python train.py
-```
-
----
-
-# Team Members
-
-* Person 1 — Dataset & Preprocessing
-* Person 2 — CNN Block
-* Person 3 — GRU Block
-* Person 4 — Autoencoder & Regularization
-* Person 5 — Integration & Evaluation
-
+Ghoddoosian, R., Galib, M., & Athitsos, V. (2019). *A Realistic Dataset and Baseline Temporal Model for Early Drowsiness Detection.* IEEE Conference on Computer Vision and Pattern Recognition Workshops (CVPRW).
